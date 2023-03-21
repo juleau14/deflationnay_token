@@ -35,6 +35,8 @@ contract taxed_token {
 
     constructor () {
         _owner = msg.sender;                // The person who deploy the contract is set as the owner
+        _balances[_owner] = _totalSupply;   // give the total supply to the owner
+        _taxWallet = address(0);            // set the tax wallet
         _excludedFromTax[_owner] = true;    // The owner is excluded from taxes
         _excludedFromTax[address(this)] = true;     // The contract itself is excluded from taxes
     }
