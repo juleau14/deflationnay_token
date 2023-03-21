@@ -162,15 +162,20 @@ contract taxed_token {
         if (!_taxEnabled) {
             taxPercentage = 0;
         }
+
         else if (from == msg.sender) {      // if it is a simple token transfer 
+           
             if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {       // if sender or receiver is excluded from tax
                 taxPercentage = 0;                                  // no tax
             }
+
             else { 
                 taxPercentage = _tax;                   // else tax
             }
         }
+
         else {                      // else if its a transferFrom
+        
             if (_excludedFromTax[to] == true) {         // if 'to' is excluded from taxes (for example the contract or the owner during a buy)
                 taxPercentage = 0;                      // no tax
             }
