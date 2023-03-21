@@ -56,6 +56,18 @@ contract taxed_token {
     function allowance(address account, address spender) external view returns(uint256) {       // return the amount of tokens owned by 'account' 'spender' is allowed to use for him
         return _allowances[account][spender];
     }
+
+    function name() public view returns(string memory) {
+        return _name;
+    }
+
+    function symbol() external view returns(string memory) {
+        return _symbol;
+    }
+
+    function decimals() external view returns(uint256) {
+        return _decimals;
+    }
     //--------------------------------------------------
 
 
