@@ -5,6 +5,13 @@ pragma solidity ^0.8.18;
 
 contract taxed_token {
 
+    /*
+    This ERC20 token contract will apply : 
+        - a 5% burn on every sell
+        - a 5% tax on every buy
+        - a 5% tax on every transfer
+    */
+
     // BASIC ATTRIBUTES
 
     string public _name = "TOKEN";          // The name of the token
@@ -20,10 +27,16 @@ contract taxed_token {
     address public _owner;                  // The address who own the contract
 
     address public _taxWallet;              // The address of the wallet where all the taxes go
-    bool public _taxEnabled = true;                // If true autoBurn enabled (default = true)
-    uint256 public _tax = 5;                       // Amount of the taxes
-    uint256 public _maximumTax = 20;                  // Maximum tax that can be set up
-    uint256 public _minimumTax = 0;                   // Minimum ----------------------
+    address public _burnWallet;             // The address of the burn wallet
+    address public _router;
+    bool public _taxEnabled = true;         // If true tax enabled (default = true)
+    bool public _burnEnabled = true;        // If true burn enabled (default = true)           
+    uint256 public _tax = 5;                // Amount of the taxes
+    uint256 public _burn = 5;               // Amount of the burn
+    uint256 public _maximumTax = 20;        // Maximum tax that can be set up
+    uint256 public _minimumTax = 0;         // Minimum tax that can be set up
+    uint256 public _maximumBurn = 20;       // Maximum burn that can be set up
+    uint256 public _minimumBurn = 0;        // Maximum burn that can be set up
 
     // EVENTS 
 
@@ -37,8 +50,10 @@ contract taxed_token {
         _owner = msg.sender;                // The person who deploy the contract is set as the owner
         _balances[_owner] = _totalSupply * 10 ** 18;   // give the total supply to the owner
         _taxWallet = address(0);            // set the tax wallet
+        _burnWallet = address(0);           // set the burn wallet
         _excludedFromTax[_owner] = true;    // The owner is excluded from taxes
         _excludedFromTax[address(this)] = true;     // The contract itself is excluded from taxes
+        _router = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;   // set the router to pancake swap router
     }
 
 
@@ -146,18 +161,42 @@ contract taxed_token {
         return true;
     }
 
+    function _disableBurn() external returns(bool) {                      // allow the owner to disable burn
+        require(isOwner(msg.sender));
+        _burnEnabled = false;
+        return true;
+    }
 
-    function taxValueCalculation(uint256 amount, uint256 taxPercentage) private pure returns(uint256) {       // return the tax value
+
+    function _enableBurn() external returns(bool) {                      // allow the owner to enable Burn
+        require(isOwner(msg.sender));
+        _burnEnabled = true;
+        return true;
+    }
+
+
+    function _changeBurn(uint256 newBurn) external returns(bool) {        // allow the owner to set a new Burn amount
+        require(newBurn <= _maximumBurn && newBurn >= _minimumBurn);        // new Burn must be between min Burn and max Burn 
+        require(isOwner(msg.sender));                                   // contract caller must be the owner
+        _burn = newBurn;
+        return true;
+    }
+
+
+    function valueCalculation(uint256 amount, uint256 taxPercentage) private pure returns(uint256) {       // return the tax value
         return (amount * taxPercentage) / 100;
     }
 
 
-    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage) private returns(bool) {         // make a transfer and apply the tax percentage in arg
-        uint256 taxValue = taxValueCalculation(amount, taxPercentage);
+    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(bool) {         // make a transfer and apply the tax percentage in arg
+        uint256 taxValue = valueCalculation(amount, taxPercentage);
+        uint256 burnValue = valueCalculation(amount, burnPercentage);
         _balances[from] -= amount;
         amount -= taxValue;
+        amount -= burnValue;
         _balances[to] += amount;
         _balances[_taxWallet] += taxValue;
+        _balances[_burnWallet] += burnValue;
         emit Transfer(from, to, amount);
         return true;
     }
@@ -166,39 +205,59 @@ contract taxed_token {
     function _transfer(address from, address to, uint256 amount) private returns(bool) {
 
         require(_balances[from] >= amount, "Not enough tokens in balance");         // 'From' must have enough tokens 
+        require(from != address(0) && to != address(0));                            // can't send to or from address 0   
 
-        if (msg.sender != from) {           // if the transfer is not made by the 'from'
-            require(_allowances[from][msg.sender] >= amount, "Allowance too low");      // The contract caller must be allowed to use 'amount' tokens for the from
-        }
-        
         uint256 taxPercentage;
+        uint256 burnPercentage;            
 
-        if (!_taxEnabled) {
-            taxPercentage = 0;
-        }
+        if (from == msg.sender) {                                                   // if the transfer is made by the 'from', it is a simple token transfer
 
-        else if (from == msg.sender) {      // if it is a simple token transfer 
-           
-            if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {       // if sender or receiver is excluded from tax
-                taxPercentage = 0;                                  // no tax
+            if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
+                taxPercentage = 0;
             }
 
-            else { 
-                taxPercentage = _tax;                   // else tax
-            }
-        }
-
-        else {                      // else if its a transferFrom
-        
-            if (_excludedFromTax[to] == true) {         // if 'to' is excluded from taxes (for example the contract or the owner during a buy)
-                taxPercentage = 0;                      // no tax
-            }
             else {
                 taxPercentage = _tax;
             }
+
+            burnPercentage = 0;
         }
 
-        _makeTransfer(from, to, amount, taxPercentage);
+        else {
+
+            require(_allowances[from][msg.sender] >= amount);
+
+            if (from != _router && to != _router) {
+                if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
+                    taxPercentage = 0;
+                } else {
+                    taxPercentage = _tax;
+                }
+                burnPercentage = 0;
+            }
+
+            else if (from == _router) {         // its a buy 
+                if (_excludedFromTax[to] == true) {
+                    taxPercentage = 0;
+                } else {
+                    taxPercentage = _tax;
+                }
+                burnPercentage = 0;
+            }
+
+            else if (to == _router) {          // its a sell 
+                taxPercentage = 0;
+                burnPercentage = 5;
+            }
+
+            else {                              // from router to router
+                taxPercentage = 0;
+                burnPercentage = 0;
+            }
+
+        }
+
+        _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
 
         return true;
 
