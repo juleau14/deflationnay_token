@@ -97,13 +97,11 @@ contract taxed_token {
 
     function transfer(address to, uint256 amount) external returns(bool) {          // make a transfer from the contract caller's balance to 'to'
         _transfer(msg.sender, to, amount);
-        emit Transfer(msg.sender, to, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns(bool) {
         _transfer(from, to, amount);
-        emit Transfer(from, to, amount);
         return true;
     }
     //--------------------------------------------------
