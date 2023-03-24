@@ -28,7 +28,6 @@ contract taxed_token {
 
     address public _taxWallet;              // The address of the wallet where all the taxes go
     address public _burnWallet;             // The address of the burn wallet
-    address public _router;
     bool public _taxEnabled = true;         // If true tax enabled (default = true)
     bool public _burnEnabled = true;        // If true burn enabled (default = true)           
     uint256 public _tax = 5;                // Amount of the taxes
@@ -53,7 +52,6 @@ contract taxed_token {
         _burnWallet = address(0);           // set the burn wallet
         _excludedFromFees[_owner] = true;    // The owner is excluded from fees
         _excludedFromFees[_taxWallet] = true;   // The tax wallet is excluded from fees
-        _excludedFromFees[address(this)] = true;     // The contract itself is excluded from fees
     }
 
 
@@ -185,7 +183,6 @@ contract taxed_token {
 
     function _burnTokens(uint256 amount) private returns(bool) {
         _balances[_burnWallet] += amount;
-        _totalSupply -= amount;
         return true;
     }
 
