@@ -40,8 +40,8 @@ contract taxed_token {
 
     // EVENTS 
 
-    event Transfer(address from, address to, uint256 amount);   // Event emitted on every token transfer (required ERC20 event)
-    event Approval(address user, address spender, uint256 amount);    // Event emitted when 'user' allow 'spender' to spend 'amount' tokens for him (required ERC20 event)
+    event Transfer(address indexed from, address indexed to, uint256 amount);   // Event emitted on every token transfer (required ERC20 event)
+    event Approval(address indexed user, address indexed spender, uint256 amount);    // Event emitted when 'user' allow 'spender' to spend 'amount' tokens for him (required ERC20 event)
 
 
     // CONSTRUCTOR
