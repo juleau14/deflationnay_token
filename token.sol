@@ -219,8 +219,6 @@ contract taxed_token {
         _burnTokens(burnValue);
 
         emit Transfer(from, to, transferedTokens);
-        emit Transfer(from, _burnWallet, burnValue);
-        emit Transfer(from, _taxWallet, taxValue);
         
         return true;
     }
