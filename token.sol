@@ -14,11 +14,11 @@ contract taxed_token {
 
     // BASIC ATTRIBUTES
 
-    string public _name = "TOKEN";          // The name of the token
-    string public _symbol = "TOK";          // The symbol of the token
+    string public name = "TOKEN";          // The name of the token
+    string public symbol = "TOK";          // The symbol of the token
+    uint8 public decimals = 18;          // The decimals of the token
 
     uint256 public _totalSupply = 1000;     // The total supply of the token
-    uint256 public _decimals = 18;          // The decimals of the token
 
     mapping(address => uint256) public _balances;   // The mapping of all balances : user_account => balance
     mapping(address => mapping(address => uint256)) public _allowances;     // The mapping of all allowances : user_account => (a_spender => amount)
@@ -48,11 +48,12 @@ contract taxed_token {
 
     constructor () {
         _owner = msg.sender;                // The person who deploy the contract is set as the owner
-        _balances[_owner] = _totalSupply * 10 ** 18;   // give the total supply to the owner
+        _balances[_owner] = _totalSupply * 10 ** decimals;   // give the total supply to the owner
         _taxWallet = 0x75C2B6c96A7B63407e9098fc09fa725693e7Ce14;            // set the tax wallet
         _burnWallet = address(0);           // set the burn wallet
-        _excludedFromFees[_owner] = true;    // The owner is excluded from taxes
-        _excludedFromFees[address(this)] = true;     // The contract itself is excluded from taxes
+        _excludedFromFees[_owner] = true;    // The owner is excluded from fees
+        _excludedFromFees[_taxWallet] = true;   // The tax wallet is excluded from fees
+        _excludedFromFees[address(this)] = true;     // The contract itself is excluded from fees
     }
 
 
@@ -69,18 +70,6 @@ contract taxed_token {
 
     function allowance(address account, address spender) external view returns(uint256) {       // return the amount of tokens owned by 'account' 'spender' is allowed to use for him
         return _allowances[account][spender];
-    }
-
-    function name() public view returns(string memory) {
-        return _name;
-    }
-
-    function symbol() external view returns(string memory) {
-        return _symbol;
-    }
-
-    function decimals() external view returns(uint256) {
-        return _decimals;
     }
     //--------------------------------------------------
 
