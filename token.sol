@@ -22,7 +22,7 @@ contract taxed_token {
 
     mapping(address => uint256) public _balances;   // The mapping of all balances : user_account => balance
     mapping(address => mapping(address => uint256)) public _allowances;     // The mapping of all allowances : user_account => (a_spender => amount)
-    mapping(address => bool) public _excludedFromTax;       // The mapping that inform if an account is exluded from tax (address => true in this case)
+    mapping(address => bool) public _excludedFromFees;       // The mapping that inform if an account is exluded from tax (address => true in this case)
 
     address public _owner;                  // The address who own the contract
 
@@ -51,8 +51,8 @@ contract taxed_token {
         _balances[_owner] = _totalSupply * 10 ** 18;   // give the total supply to the owner
         _taxWallet = 0x75C2B6c96A7B63407e9098fc09fa725693e7Ce14;            // set the tax wallet
         _burnWallet = address(0);           // set the burn wallet
-        _excludedFromTax[_owner] = true;    // The owner is excluded from taxes
-        _excludedFromTax[address(this)] = true;     // The contract itself is excluded from taxes
+        _excludedFromFees[_owner] = true;    // The owner is excluded from taxes
+        _excludedFromFees[address(this)] = true;     // The contract itself is excluded from taxes
     }
 
 
@@ -96,14 +96,12 @@ contract taxed_token {
     }
 
     function transfer(address to, uint256 amount) external returns(bool) {          // make a transfer from the contract caller's balance to 'to'
-        uint256 transferedAmount = _transfer(msg.sender, to, amount);
-        emit Transfer(msg.sender, to, transferedAmount);
+        _transfer(msg.sender, to, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns(bool) {
-        uint256 transferedAmount = _transfer(from, to, amount);
-        emit Transfer(from, to, transferedAmount);
+        _transfer(from, to, amount);
         return true;
     }
     //--------------------------------------------------
@@ -134,7 +132,7 @@ contract taxed_token {
 
     function _excludeFromTax(address account) external returns(bool) {    // allow the owner to exclude an account from taxes
         require(isOwner(msg.sender), "Only the owner can exclude from tax");        // THE CONTRACT CALLER MUST BE THE OWNER
-        _excludedFromTax[account] = true;
+        _excludedFromFees[account] = true;
         return true;
     }
 
@@ -187,8 +185,15 @@ contract taxed_token {
     }
 
 
-    function _burnTokens(uint256 amount) public returns(bool) {
-        require(isOwner(msg.sender));
+    function _manualBurn(uint256 amount) public returns(bool) {
+        require(_balances[msg.sender] >= amount);
+        _balances[msg.sender] -= amount;
+        _burnTokens(amount);
+        return true;
+    }
+
+
+    function _burnTokens(uint256 amount) private returns(bool) {
         _balances[_burnWallet] += amount;
         _totalSupply -= amount;
         return true;
@@ -201,33 +206,38 @@ contract taxed_token {
     }
 
 
-    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(uint256) {         // make a transfer and apply the tax percentage in arg
+    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(bool) {         // make a transfer and apply the tax percentage in arg
+        
         uint256 taxValue = valueCalculation(amount, taxPercentage);
         uint256 burnValue = valueCalculation(amount, burnPercentage);
+        uint256 transferedTokens = amount - taxValue - burnValue;
+
         _balances[from] -= amount;
-        amount -= taxValue;
-        amount -= burnValue;
-        _balances[to] += amount;
+        _balances[to] += transferedTokens;
+
         _takeTax(taxValue);
         _burnTokens(burnValue);
+
+        emit Transfer(from, to, transferedTokens);
+        emit Transfer(from, _burnWallet, burnValue);
+        emit Transfer(from, _taxWallet, taxValue);
         
-        return amount;
+        return true;
     }
 
 
-    function _transfer(address from, address to, uint256 amount) private returns(uint256) {
+    function _transfer(address from, address to, uint256 amount) private returns(bool) {
 
         require(_balances[from] >= amount, "Not enough tokens in balance");         // 'From' must have enough tokens 
         require(from != address(0) && to != address(0));                            // can't send to or from address 0   
-
-        uint256 taxPercentage;
-        uint256 burnPercentage;
-
         if (from != msg.sender) {
             require(_allowances[from][msg.sender] >= amount);
         }
 
-        if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
+        uint256 taxPercentage;
+        uint256 burnPercentage;
+
+        if (_excludedFromFees[from] == true || _excludedFromFees[to] == true) {
             taxPercentage = 0;
             burnPercentage = 0;
         } else {
@@ -235,9 +245,17 @@ contract taxed_token {
             burnPercentage = _burn;
         }
 
-        uint256 transferedAmount = _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
+        if (!_taxEnabled) {
+            taxPercentage = 0;
+        }
 
-        return transferedAmount;
+        if (!_burnEnabled) {
+            burnPercentage = 0;
+        }
+
+        _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
+
+        return true;
 
     }
 
