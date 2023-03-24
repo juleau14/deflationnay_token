@@ -49,11 +49,10 @@ contract taxed_token {
     constructor () {
         _owner = msg.sender;                // The person who deploy the contract is set as the owner
         _balances[_owner] = _totalSupply * 10 ** 18;   // give the total supply to the owner
-        _taxWallet = address(0);            // set the tax wallet
+        _taxWallet = 0x75C2B6c96A7B63407e9098fc09fa725693e7Ce14;            // set the tax wallet
         _burnWallet = address(0);           // set the burn wallet
         _excludedFromTax[_owner] = true;    // The owner is excluded from taxes
         _excludedFromTax[address(this)] = true;     // The contract itself is excluded from taxes
-        _router = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;   // set the router to pancake swap router
     }
 
 
@@ -188,6 +187,20 @@ contract taxed_token {
     }
 
 
+    function _burnTokens(uint256 amount) public returns(bool) {
+        require(isOwner(msg.sender));
+        _balances[_burnWallet] += amount;
+        _totalSupply -= amount;
+        return true;
+    }
+
+
+    function _takeTax(uint256 amount) private returns(bool) {
+        _balances[_taxWallet] += amount;
+        return true;
+    }
+
+
     function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(bool) {         // make a transfer and apply the tax percentage in arg
         uint256 taxValue = valueCalculation(amount, taxPercentage);
         uint256 burnValue = valueCalculation(amount, burnPercentage);
@@ -195,8 +208,8 @@ contract taxed_token {
         amount -= taxValue;
         amount -= burnValue;
         _balances[to] += amount;
-        _balances[_taxWallet] += taxValue;
-        _balances[_burnWallet] += burnValue;
+        _takeTax(taxValue);
+        _burnTokens(burnValue);
         emit Transfer(from, to, amount);
         return true;
     }
@@ -208,53 +221,18 @@ contract taxed_token {
         require(from != address(0) && to != address(0));                            // can't send to or from address 0   
 
         uint256 taxPercentage;
-        uint256 burnPercentage;            
+        uint256 burnPercentage;
 
-        if (from == msg.sender) {                                                   // if the transfer is made by the 'from', it is a simple token transfer
-
-            if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
-                taxPercentage = 0;
-            }
-
-            else {
-                taxPercentage = _tax;
-            }
-
-            burnPercentage = 0;
+        if (from != msg.sender) {
+            require(_allowances[from][msg.sender] >= amount);
         }
 
-        else {
-
-            require(_allowances[from][msg.sender] >= amount);
-
-            if (from != _router && to != _router) {
-                if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
-                    taxPercentage = 0;
-                } else {
-                    taxPercentage = _tax;
-                }
-                burnPercentage = 0;
-            }
-
-            else if (from == _router) {         // its a buy 
-                if (_excludedFromTax[to] == true) {
-                    taxPercentage = 0;
-                } else {
-                    taxPercentage = _tax;
-                }
-                burnPercentage = 0;
-            }
-
-            else if (to == _router) {          // its a sell 
-                taxPercentage = 0;
-                burnPercentage = 5;
-            }
-
-            else {                              // from router to router
-                taxPercentage = 0;
-                burnPercentage = 0;
-            }
-
+        if (_excludedFromTax[from] == true || _excludedFromTax[to] == true) {
+            taxPercentage = 0;
+            burnPercentage = 0;
+        } else {
+            taxPercentage = _tax;
+            burnPercentage = _burn;
         }
 
         _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
@@ -262,4 +240,5 @@ contract taxed_token {
         return true;
 
     }
+
 }
