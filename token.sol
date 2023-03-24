@@ -96,12 +96,14 @@ contract taxed_token {
     }
 
     function transfer(address to, uint256 amount) external returns(bool) {          // make a transfer from the contract caller's balance to 'to'
-        _transfer(msg.sender, to, amount);
+        uint256 transferedAmount = _transfer(msg.sender, to, amount);
+        emit Transfer(msg.sender, to, transferedAmount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns(bool) {
-        _transfer(from, to, amount);
+        uint256 transferedAmount = _transfer(from, to, amount);
+        emit Transfer(from, to, transferedAmount);
         return true;
     }
     //--------------------------------------------------
@@ -199,7 +201,7 @@ contract taxed_token {
     }
 
 
-    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(bool) {         // make a transfer and apply the tax percentage in arg
+    function _makeTransfer(address from, address to, uint256 amount, uint256 taxPercentage, uint256 burnPercentage) private returns(uint256) {         // make a transfer and apply the tax percentage in arg
         uint256 taxValue = valueCalculation(amount, taxPercentage);
         uint256 burnValue = valueCalculation(amount, burnPercentage);
         _balances[from] -= amount;
@@ -208,12 +210,12 @@ contract taxed_token {
         _balances[to] += amount;
         _takeTax(taxValue);
         _burnTokens(burnValue);
-        emit Transfer(from, to, amount);
-        return true;
+        
+        return amount;
     }
 
 
-    function _transfer(address from, address to, uint256 amount) private returns(bool) {
+    function _transfer(address from, address to, uint256 amount) private returns(uint256) {
 
         require(_balances[from] >= amount, "Not enough tokens in balance");         // 'From' must have enough tokens 
         require(from != address(0) && to != address(0));                            // can't send to or from address 0   
@@ -233,9 +235,9 @@ contract taxed_token {
             burnPercentage = _burn;
         }
 
-        _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
+        uint256 transferedAmount = _makeTransfer(from, to, amount, taxPercentage, burnPercentage);
 
-        return true;
+        return transferedAmount;
 
     }
 
