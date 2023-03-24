@@ -91,6 +91,7 @@ contract taxed_token {
 
     function transferFrom(address from, address to, uint256 amount) external returns(bool) {
         _transfer(from, to, amount);
+        _allowances[from][msg.sender] -= amount;
         return true;
     }
     //--------------------------------------------------
