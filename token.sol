@@ -36,6 +36,7 @@ contract taxed_token {
     uint256 public _minimumTax = 0;         // Minimum tax that can be set up
     uint256 public _maximumBurn = 20;       // Maximum burn that can be set up
     uint256 public _minimumBurn = 0;        // Maximum burn that can be set up
+    uint256 public _maxTransfer = _totalSupply;  // Maximum transfer value
 
     // EVENTS 
 
@@ -118,9 +119,16 @@ contract taxed_token {
     }
 
 
-    function _excludeFromTax(address account) external returns(bool) {    // allow the owner to exclude an account from taxes
+    function _excludeFromFees(address account) external returns(bool) {    // allow the owner to exclude an account from taxes
         require(isOwner(msg.sender), "Only the owner can exclude from tax");        // THE CONTRACT CALLER MUST BE THE OWNER
         _excludedFromFees[account] = true;
+        return true;
+    }
+
+
+    function _unexcludeFromFees(address account) external returns(bool) {
+        require(isOwner(msg.sender), "Only the owner can exclude from tax");
+        _excludedFromFees[account] = false;
         return true;
     }
 
@@ -168,6 +176,13 @@ contract taxed_token {
     }
 
 
+    function _changeMaxTransfer(uint256 newAmount) external returns(bool) {
+        require(isOwner(msg.sender));
+        _maxTransfer = newAmount * 10 ** decimals;
+        return true;
+    }
+
+
     function valueCalculation(uint256 amount, uint256 taxPercentage) private pure returns(uint256) {       // return the tax value
         return (amount * taxPercentage) / 100;
     }
@@ -175,6 +190,7 @@ contract taxed_token {
 
     function _manualBurn(uint256 amount) public returns(bool) {
         require(_balances[msg.sender] >= amount);
+        amount = amount * 10 ** decimals;
         _balances[msg.sender] -= amount;
         _burnTokens(amount);
         return true;
@@ -215,6 +231,7 @@ contract taxed_token {
 
         require(_balances[from] >= amount, "Not enough tokens in balance");         // 'From' must have enough tokens 
         require(from != address(0) && to != address(0) && from != _burnWallet);                            // can't send to or from address 0   
+        require(isOwner(msg.sender) || amount <= _maxTransfer);                         // owner can transfer the amount he wants without restrictions
         if (from != msg.sender) {
             require(_allowances[from][msg.sender] >= amount);
         }
